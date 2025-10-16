@@ -1,49 +1,36 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot import types
+from loader import bot
 
-
-def get_article_keyboard(article_url: str, current_index: int, total_articles: int):
-    """Клавиатура для навигации по статьям"""
-    keyboard = InlineKeyboardMarkup(row_width=2)
-
-    full_content_btn = InlineKeyboardButton(
-        text="📖 Полный текст",
-        callback_data=f"full_content:{article_url}"
+def get_news_keyboard(news_items):
+    """Создает инлайн клавиатуру с новостями"""
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    
+    for i, news in enumerate(news_items[:5], 1):
+        if news.get('link'):
+            btn = types.InlineKeyboardButton(
+                text=f"📰 {i}. {news['title'][:30]}...",
+                url=news['link']
+            )
+            keyboard.add(btn)
+    
+    # Кнопка обновления
+    refresh_btn = types.InlineKeyboardButton(
+        text="🔄 Обновить новости", 
+        callback_data="refresh_news"
     )
-
-    next_btn = InlineKeyboardButton(
-        text="➡️ Следующая",
-        callback_data=f"next_article:{(current_index + 1) % total_articles}"
-    )
-
-    prev_btn = InlineKeyboardButton(
-        text="⬅️ Предыдущая",
-        callback_data=f"next_article:{(current_index - 1) % total_articles}"
-    )
-
-    keyboard.add(prev_btn, next_btn)
-    keyboard.add(full_content_btn)
-
+    keyboard.add(refresh_btn)
+    
     return keyboard
 
-
-def get_pagination_keyboard(page: int, has_next: bool = True):
-    """Клавиатура для пагинации"""
-    keyboard = InlineKeyboardMarkup(row_width=2)
-
-    buttons = []
-
-    if page > 1:
-        buttons.append(InlineKeyboardButton(
-            text="⬅️ Назад",
-            callback_data=f"page:{page-1}"
-        ))
-
-    if has_next:
-        buttons.append(InlineKeyboardButton(
-            text="Вперед ➡️",
-            callback_data=f"page:{page+1}"
-        ))
-
+def get_main_keyboard():
+    """Основная клавиатура"""
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    
+    buttons = [
+        types.KeyboardButton("📰 Последние новости"),
+        types.KeyboardButton("🔄 Обновить"),
+        types.KeyboardButton("❓ Помощь")
+    ]
+    
     keyboard.add(*buttons)
-
     return keyboard

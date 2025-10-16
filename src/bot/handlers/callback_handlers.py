@@ -1,60 +1,39 @@
-from aiogram import Dispatcher, types
-from aiogram.dispatcher import FSMContext
-from bot.parser.itproger_parser import ITProgerParser
-from bot.keyboards.inline import get_article_keyboard
-from bot.handlers.user_handlers import user_articles, user_current_index, show_article, show_fast_article
-import logging
+from loader import bot
+from bot.parser.itproger_parser import ItProgerParser
+from bot.keyboards.inline import get_news_keyboard
 
-logger = logging.getLogger(__name__)
+parser = ItProgerParser()
 
-async def handle_next_article(callback: types.CallbackQuery):
-    """Обработчик переключения между статьями"""
-    user_id = callback.from_user.id
-    data = callback.data.split(":")[1]
+@bot.callback_query_handler(func=lambda call: call.data == "refresh_news")
+def refresh_news_callback(call):
+    """Обновление новостей по инлайн кнопке"""
+    bot.answer_callback_query(call.id, "🔄 Обновляем новости...")
     
-    try:
-        article_index = int(data)
-        await callback.message.delete()
-        await show_article(callback.message, user_id, article_index)
-    except (ValueError, IndexError) as e:
-        logger.error(f"Ошибка при переключении статьи: {e}")
-        await callback.answer("❌ Ошибка при переключении статьи")
+    news = parser.get_news(count=5)
     
-    await callback.answer()
-
-async def handle_full_content(callback: types.CallbackQuery):
-    """Обработчик показа полного текста статьи"""
-    user_id = callback.from_user.id
-    article_url = callback.data.split(":")[1]
-    
-    await callback.answer("🔄 Загружаю полный текст...")
-    
-    # Получаем полный контент асинхронно
-    async with ITProgerParser() as parser:
-        content_data = await parser.get_article_content(article_url)
-    
-    if content_data and content_data["content"]:
-        # Ограничиваем длину сообщения (Telegram limit ~4096 символов)
-        content = content_data["content"]
-        if len(content) > 4000:
-            content = content[:4000] + "\n\n... (текст обрезан)"
-        
-        await callback.message.answer(
-            f"<b>📖 Полный текст статьи:</b>\n\n{content}",
-            parse_mode="HTML"
+    if not news:
+        bot.edit_message_text(
+            "❌ Не удалось обновить новости. Попробуйте позже.",
+            call.message.chat.id,
+            call.message.message_id
         )
-    else:
-        await callback.message.answer("❌ Не удалось загрузить полный текст статьи")
-
-async def handle_page_change(callback: types.CallbackQuery):
-    """Обработчик смены страницы"""
-    page = int(callback.data.split(":")[1])
+        return
     
-    await callback.answer(f"🔄 Загружаю страницу {page}...")
-    # Здесь можно реализовать загрузку разных страниц
-
-def register_callback_handlers(dp: Dispatcher):
-    """Регистрация всех callback обработчиков"""
-    dp.register_callback_query_handler(handle_next_article, lambda c: c.data.startswith("next_article:"))
-    dp.register_callback_query_handler(handle_full_content, lambda c: c.data.startswith("full_content:"))
-    dp.register_callback_query_handler(handle_page_change, lambda c: c.data.startswith("page:"))
+    # Обновляем сообщение
+    news_text = "<b>📰 Обновленные новости ITproger:</b>\n\n"
+    
+    for i, item in enumerate(news, 1):
+        news_text += f"<b>{i}. {item['title']}</b>\n"
+        if item['description']:
+            news_text += f"{item['description']}\n"
+        if item['date']:
+            news_text += f"<i>📅 {item['date']}</i>\n"
+        news_text += "\n"
+    
+    bot.edit_message_text(
+        news_text,
+        call.message.chat.id,
+        call.message.message_id,
+        reply_markup=get_news_keyboard(news),
+        parse_mode='HTML'
+    )
